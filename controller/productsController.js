@@ -52,9 +52,6 @@ const show = (req, res) => {
       console.error("Errore durante la query:", err);
       return res.status(500).json({ error: "Errore nel database" });
     }
-    if (results.length === 0) {
-      return res.status(404).json({ error: "Gioco non trovato" });
-    }
 
     const formattedResults = results.map((product) => ({
       ...product,
@@ -64,6 +61,9 @@ const show = (req, res) => {
         : [],
       id_category: product.id_category ? product.id_category.split(",") : [],
     }));
+    if (results.length === 0) {
+      return res.status(404).json({ error: "Gioco non trovato" });
+    }
     res.json(formattedResults);
   });
 };
