@@ -1,10 +1,9 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const productsController = require('../controller/productsController.js');
+const productsController = require("../controller/productsController.js");
 
 // Rotta per ottenere tutti i prodotti
-router.get('/products', productsController.index);
-
-
+router.get("/products", productsController.index);
+router.get("/products/:id", productsController.show);
 
 module.exports = router;
