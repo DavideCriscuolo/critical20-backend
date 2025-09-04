@@ -7,10 +7,10 @@ const app = express();
 const routerCategories = require("./routes/categoriesRoute");
 const routerProducts = require("./routes/productsRoutes.js");
 
+app.use(cors());
 app.use("/api", routerCategories);
 app.use("/api", routerProducts);
 app.use(express.static("public"));
-app.use(cors());
 app.use(express.json());
 
 app.listen(port, () => {
