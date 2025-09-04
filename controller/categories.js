@@ -1,9 +1,9 @@
 const connection = require("../db/conncetion");
-const conncetion = require("../db/conncetion");
+
 const dotenv = require("dotenv");
 dotenv.config();
 
-const getCategories = (req, res) => {
+const index = (req, res) => {
   const sql = "SELECT * FROM categories";
 
   connection.query(sql, (err, results) => {
@@ -16,5 +16,5 @@ const getCategories = (req, res) => {
 };
 
 module.exports = {
-  getCategories,
+  index,
 };
