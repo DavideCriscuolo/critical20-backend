@@ -1,0 +1,20 @@
+const connection = require("../db/conncetion");
+const conncetion = require("../db/conncetion");
+const dotenv = require("dotenv");
+dotenv.config();
+
+const getCategories = (req, res) => {
+  const sql = "SELECT * FROM categories";
+
+  connection.query(sql, (err, results) => {
+    if (err) {
+      res.status(500).send({ error: err.message });
+    } else {
+      res.json(results);
+    }
+  });
+};
+
+module.exports = {
+  getCategories,
+};

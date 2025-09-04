@@ -4,6 +4,9 @@ const dontenv = require("dotenv");
 dontenv.config();
 const port = process.env.PORT;
 const app = express();
+const router = require("./routes/categoriesRoute");
+
+app.use("/api", router);
 app.use(express.static("public"));
 app.use(cors());
 app.use(express.json());
