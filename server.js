@@ -10,7 +10,7 @@ const routerProducts = require("./routes/productsRoutes.js");
 const routerDiscountCodes = require("./routes/discountCodesRoute.js")
 const routerInvoices = require("./routes/invoicesRoute.js")
 
-const routerDiscountCodes = require("./routes/discountCodesRoute.js");
+
 
 const errorsHandlers = require("./middleware/errorsHandler.js");
 const notFound = require("./middleware/notFound.js");
