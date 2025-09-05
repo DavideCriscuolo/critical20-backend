@@ -11,11 +11,11 @@ const errorsHandlers = require("./middleware/errorsHandler.js");
 const notFound = require("./middleware/notFound.js");
 
 app.use(cors());
+app.use(express.json());
 app.use("/api", routerCategories);
 app.use("/api", routerProducts);
 app.use("/api", routerDiscountCodes);
 app.use(express.static("public"));
-app.use(express.json());
 
 app.listen(port, () => {
   console.log("Il server sta girando sulla porta " + port);
