@@ -5,5 +5,6 @@ const productsController = require("../controller/productsController.js");
 // Rotta per ottenere tutti i prodotti
 router.get("/products", productsController.index);
 router.get("/products/:id", productsController.show);
+router.get("/products/new", productsController.showNew);
 
 module.exports = router;

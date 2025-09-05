@@ -69,31 +69,24 @@ const show = (req, res) => {
 };
 
 const showNew = (req, res) => {
-  const sql = `
-            SELECT products.*,
-               GROUP_CONCAT(DISTINCT product_medias.file_path ) AS file_paths
-        FROM boardgames_shop.products
-        JOIN product_medias ON products.id = product_medias.id_product
-        GROUP BY products.id
-        ORDER BY created_at DESC
-          LIMIT 4
-
-    `;
+  console.log("ciao");
+  const sql =
+    "SELECT products.*, GROUP_CONCAT(DISTINCT product_medias.file_path ) AS file_paths FROM products JOIN product_medias ON products.id = product_medias.id_product GROUP BY products.id ORDER BY created_at DESC LIMIT 4;";
   connection.query(sql, (err, results) => {
     if (err) {
       console.error("Errore durante la query:", err);
       return res.status(500).json({ error: "Errore nel database" });
     }
 
-    const formattedResults = results.map((product) => ({
-      ...product,
-      file_paths: product.file_paths ? product.file_paths.split(",") : [],
-      categories: product.category_names
-        ? product.category_names.split(",")
-        : [],
-    }));
+    // const formattedResults = results.map((product) => ({
+    //   ...product,
+    //   file_paths: product.file_paths ? product.file_paths.split(",") : [],
+    //   categories: product.category_names
+    //     ? product.category_names.split(",")
+    //     : [],
+    // }));
 
-    res.json(formattedResults);
+    res.json(results);
   });
 };
 
