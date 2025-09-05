@@ -41,7 +41,58 @@ function index(req, res) {
     res.json(formattedResults);
   });
 }
+const store = (req, res) => {
+  const {
+    name,
+    description,
+    price,
+    original_price,
+    is_on_sale,
+    stock_quantity,
+    created_at,
+    isbn,
+    code,
+    img,
+    duration,
+    players,
+    difficulty,
+    editor,
+    language,
+    age,
+  } = req.body;
 
+  const sqlInsertProduct =
+    "INSERT INTO products (name, description, price, original_price, is_on_sale, stock_quantity, created_at, isbn, code, img, duration, players, difficulty, editor, language, age) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
+
+  connection.query(
+    sqlInsertProduct,
+    [
+      name,
+      description,
+      price,
+      original_price,
+      is_on_sale,
+      stock_quantity,
+      created_at,
+      isbn,
+      code,
+      img,
+      duration,
+      players,
+      difficulty,
+      editor,
+      language,
+      age,
+    ],
+    (err, results) => {
+      if (err) {
+        console.log(req.body);
+        return res.status(500).json({ error: "Errore nel database" });
+      }
+      res.status(201).json(results);
+    }
+  );
+};
 const show = (req, res) => {
   const id = req.params.id;
 
@@ -69,7 +120,6 @@ const show = (req, res) => {
 };
 
 const showNew = (req, res) => {
-  console.log("ciao");
   const sql =
     "SELECT products.*, GROUP_CONCAT(DISTINCT product_medias.file_path ) AS file_paths FROM products JOIN product_medias ON products.id = product_medias.id_product GROUP BY products.id ORDER BY created_at DESC LIMIT 4;";
   connection.query(sql, (err, results) => {
@@ -87,4 +137,4 @@ const showNew = (req, res) => {
   });
 };
 
-module.exports = { index, show, showNew };
+module.exports = { index, show, showNew, store };
