@@ -6,6 +6,8 @@ const port = process.env.PORT;
 const app = express();
 const routerCategories = require("./routes/categoriesRoute");
 const routerProducts = require("./routes/productsRoutes.js");
+const errorsHandlers = require("./middleware/errorsHandler.js");
+const notFound = require("./middleware/notFound.js");
 
 app.use(cors());
 app.use("/api", routerCategories);
@@ -16,3 +18,7 @@ app.use(express.json());
 app.listen(port, () => {
   console.log("Il server sta girando sulla porta " + port);
 });
+
+
+app.use(notFound);
+app.use(errorsHandlers);
