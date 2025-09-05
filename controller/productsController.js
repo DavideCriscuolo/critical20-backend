@@ -49,7 +49,6 @@ const store = (req, res) => {
     original_price,
     is_on_sale,
     stock_quantity,
-    created_at,
     isbn,
     code,
     img,
@@ -61,8 +60,28 @@ const store = (req, res) => {
     age,
   } = req.body;
 
+  if (
+    !name ||
+    !description ||
+    !price ||
+    !original_price ||
+    !is_on_sale ||
+    !stock_quantity ||
+    !isbn ||
+    !code ||
+    !img ||
+    !duration ||
+    !players ||
+    !difficulty ||
+    !editor ||
+    !language ||
+    !age
+  ) {
+    return res.status(400).json({ error: "Dati mancanti" });
+  }
+
   const sqlInsertProduct =
-    "INSERT INTO products (name, description, price, original_price, is_on_sale, stock_quantity, created_at, isbn, code, img, duration, players, difficulty, editor, language, age) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
+    "INSERT INTO products (name, description, price, original_price, is_on_sale, stock_quantity, created_at, isbn, code, img, duration, players, difficulty, editor, language, age) VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?);";
 
   connection.query(
     sqlInsertProduct,
@@ -73,7 +92,6 @@ const store = (req, res) => {
       original_price,
       is_on_sale,
       stock_quantity,
-      created_at,
       isbn,
       code,
       img,
@@ -86,10 +104,28 @@ const store = (req, res) => {
     ],
     (err, results) => {
       if (err) {
-        console.log(req.body);
         return res.status(500).json({ error: "Errore nel database" });
       }
-      res.status(201).json(results);
+
+      const id_product = results.insertId;
+      const { file_path, alt_text, position } = req.body;
+      if (!file_path || !alt_text || !position) {
+        return res.status(400).json({ error: "Dati mancanti" });
+      }
+
+      const sqlInsertImg =
+        "INSERT INTO `product_medias` (`id_product`, `file_path`, `alt_text`, `position`) VALUES (?, ?, ?, ?);";
+      connection.query(
+        sqlInsertImg,
+        [id_product, file_path, alt_text, position],
+        (err, results) => {
+          if (err) {
+            console.log(req.body);
+            return res.status(500).json({ error: "Errore nel database" });
+          }
+          res.status(201).json(results);
+        }
+      );
     }
   );
 };
