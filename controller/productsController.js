@@ -78,15 +78,12 @@ const showNew = (req, res) => {
       return res.status(500).json({ error: "Errore nel database" });
     }
 
-    // const formattedResults = results.map((product) => ({
-    //   ...product,
-    //   file_paths: product.file_paths ? product.file_paths.split(",") : [],
-    //   categories: product.category_names
-    //     ? product.category_names.split(",")
-    //     : [],
-    // }));
+    const formattedResults = results.map((product) => ({
+      ...product,
+      file_paths: product.file_paths ? product.file_paths.split(",") : [],
+    }));
 
-    res.json(results);
+    res.json(formattedResults);
   });
 };
 
