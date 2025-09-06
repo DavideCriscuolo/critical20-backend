@@ -65,7 +65,7 @@ const store = (req, res) => {
     !description ||
     !price ||
     !original_price ||
-    !is_on_sale ||
+    is_on_sale === undefined ||
     !stock_quantity ||
     !isbn ||
     !code ||
@@ -109,7 +109,7 @@ const store = (req, res) => {
 
       const id_product = results.insertId;
       const { file_path, alt_text, position } = req.body;
-      if (!file_path || !alt_text || !position) {
+      if (!file_path || !alt_text || position === undefined) {
         return res.status(400).json({ error: "Dati mancanti" });
       }
 
@@ -172,5 +172,99 @@ const showNew = (req, res) => {
     res.json(formattedResults);
   });
 };
+const moddify = (req, res) => {
+  const id = req.params.id;
+  const {
+    name,
+    description,
+    price,
+    original_price,
+    is_on_sale,
+    stock_quantity,
+    isbn,
+    code,
+    img,
+    duration,
+    players,
+    difficulty,
+    editor,
+    language,
+    age,
+  } = req.body;
 
-module.exports = { index, show, showNew, store };
+  if (
+    !name ||
+    !description ||
+    !price ||
+    !original_price ||
+    is_on_sale === undefined ||
+    !stock_quantity ||
+    !isbn ||
+    !code ||
+    !img ||
+    !duration ||
+    !players ||
+    !difficulty ||
+    !editor ||
+    !language ||
+    !age
+  ) {
+    return res.status(400).json({ error: "Dati mancanti" });
+  }
+  const sql =
+    "UPDATE products SET name = ?, description = ?, price = ?, original_price = ?, is_on_sale = ?, stock_quantity = ?, created_at = NOW(), isbn = ?, code = ?, img = ?, duration = ?, players = ?, difficulty = ?, editor = ?, language = ?, age = ? WHERE id = ?;";
+
+  connection.query(
+    sql,
+    [
+      name,
+      description,
+      price,
+      original_price,
+      is_on_sale,
+      stock_quantity,
+      isbn,
+      code,
+      img,
+      duration,
+      players,
+      difficulty,
+      editor,
+      language,
+      age,
+      id,
+    ],
+    (err, results) => {
+      if (err) {
+        console.log("errore durante l'aggiornamento:", err);
+        return res.status(500).json({ error: "Errore nel database" });
+      }
+
+      if (results.affectedRows === 0) {
+        return res.status(404).json({ error: "Gioco non trovato" });
+      }
+
+      res.json({ message: "Gioco aggiornato con successo" });
+    }
+  );
+};
+const destroy = (req, res) => {
+  const id = req.params.id;
+
+  const sql = "DELETE FROM products WHERE id = ?";
+
+  connection.query(sql, [id], (err, result) => {
+    if (err) {
+      console.log("errore durante l'eliminazione:", err);
+      return res.status(500).json({ error: "Errore nel database" });
+    }
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Gioco non trovato" });
+    }
+
+    res.json({ message: "Gioco eliminato con successo" });
+  });
+};
+
+module.exports = { index, show, showNew, store, moddify, destroy };
