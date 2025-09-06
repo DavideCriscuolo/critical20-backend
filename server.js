@@ -7,11 +7,10 @@ const app = express();
 const routerCategories = require("./routes/categoriesRoute");
 const routerProducts = require("./routes/productsRoutes.js");
 
-const routerDiscountCodes = require("./routes/discountCodesRoute.js")
-const routerInvoices = require("./routes/invoicesRoute.js")
-const routerProductMedias = require("./routes/productMediasRoute.js")
-
-
+const routerDiscountCodes = require("./routes/discountCodesRoute.js");
+const routerInvoices = require("./routes/invoicesRoute.js");
+const routerProductMedias = require("./routes/productMediasRoute.js");
+const routerSendEmail = require("./routes/sendEmailRoute.js");
 
 const errorsHandlers = require("./middleware/errorsHandler.js");
 const notFound = require("./middleware/notFound.js");
@@ -23,6 +22,8 @@ app.use("/api", routerProducts);
 app.use("/api", routerDiscountCodes);
 app.use("/api", routerInvoices);
 app.use("/api", routerProductMedias);
+app.use("/api", routerSendEmail);
+
 app.use(express.static("public"));
 
 app.listen(port, () => {
