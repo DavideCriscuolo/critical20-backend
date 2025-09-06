@@ -172,7 +172,7 @@ const showNew = (req, res) => {
     res.json(formattedResults);
   });
 };
-const moddify = (req, res) => {
+const modify = (req, res) => {
   const id = req.params.id;
   const {
     name,
@@ -267,4 +267,4 @@ const destroy = (req, res) => {
   });
 };
 
-module.exports = { index, show, showNew, store, moddify, destroy };
+module.exports = { index, show, showNew, store, modify, destroy };
