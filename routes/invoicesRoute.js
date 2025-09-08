@@ -9,7 +9,7 @@ router.get("/invoices", invoicesController.index);
 router.get("/invoices/:id", invoicesController.show);
 
 // Rotta per creare un nuovo invoice
-router.post("/invoices", invoicesController.store);
+router.post("/invoices", invoicesController.storeCheckout);
 
 // Rotta per cambiare interamente un invoice sconto tramite id
 router.put("/invoices/:id", invoicesController.update);
