@@ -39,7 +39,7 @@ const show = (req, res) => {
     const sqlProducts = `
       SELECT 
         p.*,
-        GROUP_CONCAT(DISTINCT pm.file_path) AS file_path,
+        GROUP_CONCAT(DISTINCT pm.file_path) AS file_paths,
         GROUP_CONCAT(DISTINCT c.name) AS categories
       FROM boardgames_shop.products p
       JOIN product_medias pm ON p.id = pm.id_product
@@ -53,11 +53,19 @@ const show = (req, res) => {
       if (err) {
         return res.status(500).json({ error: true, mess: err.message });
       }
+      const baseUrl = `${req.protocol}://${req.get("host")}`;
+
+      const formattedProducts = productResults.map((product) => ({
+        ...product,
+        file_paths: product.file_paths
+          ? product.file_paths.split(",").map((f) => `${baseUrl}/${f}`)
+          : [],
+      }));
 
       // Risposta finale "ibrida"
       res.json({
         ...category,
-        products: productResults
+        products: formattedProducts
       });
     });
   });
