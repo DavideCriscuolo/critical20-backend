@@ -1,5 +1,6 @@
 const connection = require("../db/connection");
 
+// mostra la lista di tutti i giochi
 function index(req, res) {
   const { name, editor } = req.query;
   let sql = `
@@ -30,7 +31,7 @@ function index(req, res) {
       return res.status(500).json({ error: "Errore nel database" });
     }
 
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const baseUrl = `${req.protocol}://${req.get("host")}`; // per ottenere l'URL base del server
 
     const formattedResults = results.map((product) => ({
       ...product,
@@ -46,6 +47,7 @@ function index(req, res) {
   });
 }
 
+// crea un nuovo gioco
 const store = (req, res) => {
   const {
     name,
@@ -117,7 +119,7 @@ const store = (req, res) => {
       if (!file_path || !alt_text || position === undefined) {
         return res.status(400).json({ error: "Dati mancanti" });
       }
-
+      // inseriamo le immagini
       const sqlInsertImg =
         "INSERT INTO `product_medias` (`id_product`, `file_path`, `alt_text`, `position`) VALUES (?, ?, ?, ?);";
       connection.query(
@@ -134,12 +136,13 @@ const store = (req, res) => {
     }
   );
 };
+// mostra un singolo gioco tramite l id
 const show = (req, res) => {
   const id = req.params.id;
-
+  //GROUP_CONCAT per ottenere un array di stringhe
   const sql = `
     SELECT products.*,
-           GROUP_CONCAT(DISTINCT product_medias.file_path) AS file_paths,
+           GROUP_CONCAT(DISTINCT product_medias.file_path) AS file_paths,  
            GROUP_CONCAT(DISTINCT categories.name) AS category_names,
            GROUP_CONCAT(DISTINCT categories.id) AS id_category
     FROM boardgames_shop.products
@@ -169,16 +172,14 @@ const show = (req, res) => {
       categories: product.category_names
         ? product.category_names.split(",")
         : [],
-      id_category: product.id_category
-        ? product.id_category.split(",")
-        : [],
+      id_category: product.id_category ? product.id_category.split(",") : [],
     }));
 
     res.json(formattedResults);
   });
 };
 
-
+// mostra i 4 gioco piu recenti
 const showNew = (req, res) => {
   const sql = `
     SELECT products.*,
@@ -208,7 +209,7 @@ const showNew = (req, res) => {
     res.json(formattedResults);
   });
 };
-
+// aggiorniamo un gioco tramite l id
 const modify = (req, res) => {
   const id = req.params.id;
   const {
@@ -285,6 +286,7 @@ const modify = (req, res) => {
     }
   );
 };
+// eliminiamo un gioco tramite l id
 const destroy = (req, res) => {
   const id = req.params.id;
 
