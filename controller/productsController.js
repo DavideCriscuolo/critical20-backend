@@ -30,9 +30,13 @@ function index(req, res) {
       return res.status(500).json({ error: "Errore nel database" });
     }
 
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+
     const formattedResults = results.map((product) => ({
       ...product,
-      file_paths: product.file_paths ? product.file_paths.split(",") : [],
+      file_paths: product.file_paths
+        ? product.file_paths.split(",").map((f) => `${baseUrl}/${f}`)
+        : [],
       categories: product.category_names
         ? product.category_names.split(",")
         : [],
@@ -41,6 +45,7 @@ function index(req, res) {
     res.json(formattedResults);
   });
 }
+
 const store = (req, res) => {
   const {
     name,
@@ -132,46 +137,78 @@ const store = (req, res) => {
 const show = (req, res) => {
   const id = req.params.id;
 
-  const sql =
-    " SELECT products.*, GROUP_CONCAT(DISTINCT product_medias.file_path) AS file_paths,GROUP_CONCAT(DISTINCT categories.name) AS category_names,GROUP_CONCAT(DISTINCT categories.id) AS id_category FROM boardgames_shop.products JOIN product_medias ON products.id = product_medias.id_product JOIN product_category ON products.id = product_category.id_product JOIN categories ON product_category.id_category = categories.id where products.id=?";
+  const sql = `
+    SELECT products.*,
+           GROUP_CONCAT(DISTINCT product_medias.file_path) AS file_paths,
+           GROUP_CONCAT(DISTINCT categories.name) AS category_names,
+           GROUP_CONCAT(DISTINCT categories.id) AS id_category
+    FROM boardgames_shop.products
+    JOIN product_medias ON products.id = product_medias.id_product
+    JOIN product_category ON products.id = product_category.id_product
+    JOIN categories ON product_category.id_category = categories.id
+    WHERE products.id=?
+  `;
+
   connection.query(sql, [id], (err, results) => {
     if (err) {
       console.error("Errore durante la query:", err);
       return res.status(500).json({ error: "Errore nel database" });
     }
 
-    if (results.length > 0 && results[0].id === null) {
+    if (results.length === 0 || results[0].id === null) {
       return res.status(404).json({ error: "Gioco non trovato" });
     }
+
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+
     const formattedResults = results.map((product) => ({
       ...product,
-      file_paths: product.file_paths ? product.file_paths.split(",") : [],
+      file_paths: product.file_paths
+        ? product.file_paths.split(",").map((f) => `${baseUrl}/${f}`)
+        : [],
       categories: product.category_names
         ? product.category_names.split(",")
         : [],
-      id_category: product.id_category ? product.id_category.split(",") : [],
+      id_category: product.id_category
+        ? product.id_category.split(",")
+        : [],
     }));
+
     res.json(formattedResults);
   });
 };
 
+
 const showNew = (req, res) => {
-  const sql =
-    "SELECT products.*, GROUP_CONCAT(DISTINCT product_medias.file_path ) AS file_paths FROM products JOIN product_medias ON products.id = product_medias.id_product GROUP BY products.id ORDER BY created_at DESC LIMIT 4;";
+  const sql = `
+    SELECT products.*,
+           GROUP_CONCAT(DISTINCT product_medias.file_path) AS file_paths
+    FROM products
+    JOIN product_medias ON products.id = product_medias.id_product
+    GROUP BY products.id
+    ORDER BY created_at DESC
+    LIMIT 4;
+  `;
+
   connection.query(sql, (err, results) => {
     if (err) {
       console.error("Errore durante la query:", err);
       return res.status(500).json({ error: "Errore nel database" });
     }
 
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+
     const formattedResults = results.map((product) => ({
       ...product,
-      file_paths: product.file_paths ? product.file_paths.split(",") : [],
+      file_paths: product.file_paths
+        ? product.file_paths.split(",").map((f) => `${baseUrl}/${f}`)
+        : [],
     }));
 
     res.json(formattedResults);
   });
 };
+
 const modify = (req, res) => {
   const id = req.params.id;
   const {
