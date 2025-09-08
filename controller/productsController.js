@@ -1,8 +1,8 @@
 const connection = require("../db/connection");
 
-// mostra la lista di tutti i giochi
+// mostra la lista di tutti i giochi con filtri
 function index(req, res) {
-  const { name, editor } = req.query;
+  const { name, editor, age, players, difficulty } = req.query;
   let sql = `
         SELECT products.*,
                GROUP_CONCAT(DISTINCT product_medias.file_path) AS file_paths,
@@ -11,16 +11,39 @@ function index(req, res) {
         JOIN product_medias ON products.id = product_medias.id_product
         JOIN product_category ON products.id = product_category.id_product
         JOIN categories ON product_category.id_category = categories.id
+        WHERE 1 = 1
     `;
 
   const params = [];
 
+  // filtro per nome (ricerca parziale, case-insensitive)
   if (name) {
-    sql += " AND LOWER(products.name) = ?";
-    params.push(name.toLowerCase());
-  } else if (editor) {
-    sql += " AND LOWER(products.editor) = ?";
-    params.push(editor.toLowerCase());
+    sql += " AND LOWER(products.name) LIKE ?";
+    params.push(`%${name.toLowerCase()}%`);
+  }
+
+  // filtro per editor (ricerca parziale, case-insensitive)
+  if (editor) {
+    sql += " AND LOWER(products.editor) LIKE ?";
+    params.push(`%${editor.toLowerCase()}%`);
+  }
+
+  // filtro per età minima
+  if (age) {
+    sql += " AND products.age >= ?";
+    params.push(parseInt(age));
+  }
+
+  // filtro per numero minimo di giocatori
+  if (players) {
+    sql += " AND products.players >= ?";
+    params.push(parseInt(players));
+  }
+
+  // filtro per difficoltà (ricerca parziale, case-insensitive)
+  if (difficulty) {
+    sql += " AND LOWER(products.difficulty) LIKE ?";
+    params.push(`%${difficulty.toLowerCase()}%`);
   }
 
   sql += " GROUP BY products.id, products.name;";
@@ -31,7 +54,7 @@ function index(req, res) {
       return res.status(500).json({ error: "Errore nel database" });
     }
 
-    const baseUrl = `${req.protocol}://${req.get("host")}`; // per ottenere l'URL base del server
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
 
     const formattedResults = results.map((product) => ({
       ...product,
@@ -46,6 +69,9 @@ function index(req, res) {
     res.json(formattedResults);
   });
 }
+
+
+
 
 // crea un nuovo gioco
 const store = (req, res) => {
