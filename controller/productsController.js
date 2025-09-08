@@ -70,9 +70,6 @@ function index(req, res) {
   });
 }
 
-
-
-
 // crea un nuovo gioco
 const store = (req, res) => {
   const {
@@ -93,24 +90,87 @@ const store = (req, res) => {
     age,
   } = req.body;
 
+  if (!name || typeof name !== "string") {
+    return res
+      .status(400)
+      .json({ error: "Nome mancante o tipo di dato non corretto" });
+  }
+
+  if (!description || typeof description !== "string") {
+    return res
+      .status(400)
+      .json({ error: "Descrizione mancante o tipo di dato non corretto" });
+  }
+  if (!price || isNaN(price) || price < 0) {
+    return res
+      .status(400)
+      .json({ error: "Prezzo mancante o tipo di dato non corretto" });
+  }
+
+  if (!original_price || isNaN(original_price) || original_price < 0) {
+    return res
+      .status(400)
+      .json({ error: "Prezzo originale mancante o tipo di dato non corretto" });
+  }
   if (
-    !name ||
-    !description ||
-    !price ||
-    !original_price ||
     is_on_sale === undefined ||
-    !stock_quantity ||
-    !isbn ||
-    !code ||
-    !img ||
-    !duration ||
-    !players ||
-    !difficulty ||
-    !editor ||
-    !language ||
-    !age
+    isNaN(is_on_sale) ||
+    is_on_sale < 0 ||
+    is_on_sale > 1
   ) {
-    return res.status(400).json({ error: "Dati mancanti" });
+    return res
+      .status(400)
+      .json({ error: "Sconto mancante o tipo di dato non corretto" });
+  }
+  if (!stock_quantity || isNaN(stock_quantity)) {
+    return res
+      .status(400)
+      .json({ error: "Quantita mancante o tipo di dato non corretto" });
+  }
+  if (!isbn || typeof isbn !== "string") {
+    return res
+      .status(400)
+      .json({ error: "ISBN mancante o tipo di dato non corretto" });
+  }
+  if (!code || typeof description !== "string") {
+    return res
+      .status(400)
+      .json({ error: "Codice mancante o tipo di dato non corretto" });
+  }
+  if (!img || typeof img !== "string") {
+    return res
+      .status(400)
+      .json({ error: "Immagine mancante o tipo di dato non corretto  " });
+  }
+  if (!duration || isNaN(duration)) {
+    return res
+      .status(400)
+      .json({ error: "Durata mancante o tipo di dato non corretto" });
+  }
+  if (!players || isNaN(players)) {
+    return res
+      .status(400)
+      .json({ error: "Giocatori mancanti o tipo di dato non corretto" });
+  }
+  if (!difficulty || typeof difficulty !== "string") {
+    return res
+      .status(400)
+      .json({ error: "Difficolta mancante o tipo di dato non corretto" });
+  }
+  if (!editor || typeof editor !== "string") {
+    return res
+      .status(400)
+      .json({ error: "Editor mancante o tipo di dato non corretto" });
+  }
+  if (!language || typeof language !== "string") {
+    return res
+      .status(400)
+      .json({ error: "Lingua mancante o tipo di dato non corretto" });
+  }
+  if (!age || isNaN(age)) {
+    return res
+      .status(400)
+      .json({ error: "Eta mancante o tipo di dato non corretto" });
   }
 
   const sqlInsertProduct =
@@ -140,25 +200,13 @@ const store = (req, res) => {
         return res.status(500).json({ error: "Errore nel database" });
       }
 
-      const id_product = results.insertId;
-      const { file_path, alt_text, position } = req.body;
-      if (!file_path || !alt_text || position === undefined) {
-        return res.status(400).json({ error: "Dati mancanti" });
-      }
-      // inseriamo le immagini
-      const sqlInsertImg =
-        "INSERT INTO `product_medias` (`id_product`, `file_path`, `alt_text`, `position`) VALUES (?, ?, ?, ?);";
-      connection.query(
-        sqlInsertImg,
-        [id_product, file_path, alt_text, position],
-        (err, results) => {
-          if (err) {
-            console.log(req.body);
-            return res.status(500).json({ error: "Errore nel database" });
-          }
-          res.status(201).json(results);
-        }
-      );
+      res
+        .status(201)
+        .json({
+          message: "Gioco creato con successo",
+          id: results.insertId,
+          ...req.body,
+        });
     }
   );
 };
@@ -191,6 +239,8 @@ const show = (req, res) => {
     const baseUrl = `${req.protocol}://${req.get("host")}`;
 
     const formattedResults = results.map((product) => ({
+      //parsare price in tipo number da string nel db sono salvati in decimal
+
       ...product,
       file_paths: product.file_paths
         ? product.file_paths.split(",").map((f) => `${baseUrl}/${f}`)
@@ -200,6 +250,11 @@ const show = (req, res) => {
         : [],
       id_category: product.id_category ? product.id_category.split(",") : [],
     }));
+
+    formattedResults[0].price = Number(formattedResults[0].price);
+    formattedResults[0].original_price = Number(
+      formattedResults[0].original_price
+    );
 
     res.json(formattedResults);
   });
@@ -227,6 +282,7 @@ const showNew = (req, res) => {
 
     const formattedResults = results.map((product) => ({
       ...product,
+
       file_paths: product.file_paths
         ? product.file_paths.split(",").map((f) => `${baseUrl}/${f}`)
         : [],
@@ -256,25 +312,54 @@ const modify = (req, res) => {
     age,
   } = req.body;
 
-  if (
-    !name ||
-    !description ||
-    !price ||
-    !original_price ||
-    is_on_sale === undefined ||
-    !stock_quantity ||
-    !isbn ||
-    !code ||
-    !img ||
-    !duration ||
-    !players ||
-    !difficulty ||
-    !editor ||
-    !language ||
-    !age
-  ) {
-    return res.status(400).json({ error: "Dati mancanti" });
+  //se manca il nome o non è di tipo string
+  if (!name || typeof name !== "string") {
+    return res.status(400).json({ error: "Nome mancante" });
   }
+
+  if (!description || typeof description !== "string") {
+    return res.status(400).json({ error: "Descrizione mancante" });
+  }
+  if (!price || isNaN(price)) {
+    return res.status(400).json({ error: "Prezzo mancante" });
+  }
+  if (!original_price || isNaN(original_price)) {
+    return res.status(400).json({ error: "Prezzo originale mancante" });
+  }
+  if (is_on_sale === undefined) {
+    return res.status(400).json({ error: "Sconto mancante" });
+  }
+  if (!stock_quantity || isNaN(stock_quantity)) {
+    return res.status(400).json({ error: "Quantita mancante" });
+  }
+  if (!isbn || typeof isbn !== "string") {
+    return res.status(400).json({ error: "ISBN mancante" });
+  }
+  if (!code || typeof description !== "string") {
+    return res.status(400).json({ error: "Codice mancante" });
+  }
+  if (!img || typeof img !== "string") {
+    return res.status(400).json({ error: "Immagine mancante" });
+  }
+  if (!duration || isNaN(duration)) {
+    return res.status(400).json({ error: "Durata mancante" });
+  }
+  if (!players || isNaN(players)) {
+    return res.status(400).json({ error: "Giocatori mancanti" });
+  }
+  if (!difficulty || typeof difficulty !== "string") {
+    return res.status(400).json({ error: "Difficolta mancante" });
+  }
+  if (!editor || typeof editor !== "string") {
+    return res.status(400).json({ error: "Editor mancante" });
+  }
+  if (!language || typeof language !== "string") {
+    return res.status(400).json({ error: "Lingua mancante" });
+  }
+  if (!age || isNaN(age)) {
+    return res.status(400).json({ error: "Eta mancante" });
+  }
+
   const sql =
     "UPDATE products SET name = ?, description = ?, price = ?, original_price = ?, is_on_sale = ?, stock_quantity = ?, created_at = NOW(), isbn = ?, code = ?, img = ?, duration = ?, players = ?, difficulty = ?, editor = ?, language = ?, age = ? WHERE id = ?;";
 
