@@ -3,69 +3,115 @@ const connection = require("../db/connection");
 const { slugify} = require("../utils/slug.js")
 
 function index(req, res) {
-  const { name, editor, age, players, difficulty } = req.query;
-  let sql = `
-        SELECT products.*,
-               GROUP_CONCAT(DISTINCT product_medias.file_path) AS file_paths,
-               GROUP_CONCAT(DISTINCT categories.name) AS category_names
-        FROM boardgames_shop.products
-        JOIN product_medias ON products.id = product_medias.id_product
-        JOIN product_category ON products.id = product_category.id_product
-        JOIN categories ON product_category.id_category = categories.id
-        WHERE 1 = 1
-    `;
+  const { name, editor, age, players, difficulty, sort, page } = req.query;
 
+  let whereClause = " WHERE 1=1 ";
   const params = [];
 
   if (name) {
-    sql += " AND LOWER(products.name) LIKE ?";
+    whereClause += " AND LOWER(products.name) LIKE ?";
     params.push(`%${name.toLowerCase()}%`);
   }
-
   if (editor) {
-    sql += " AND LOWER(products.editor) LIKE ?";
+    whereClause += " AND LOWER(products.editor) LIKE ?";
     params.push(`%${editor.toLowerCase()}%`);
   }
-
   if (age) {
-    sql += " AND products.age >= ?";
+    whereClause += " AND products.age >= ?";
     params.push(parseInt(age));
   }
-
   if (players) {
-    sql += " AND products.players >= ?";
+    whereClause += " AND products.players >= ?";
     params.push(parseInt(players));
   }
-
   if (difficulty) {
-    sql += " AND LOWER(products.difficulty) LIKE ?";
+    whereClause += " AND LOWER(products.difficulty) LIKE ?";
     params.push(`%${difficulty.toLowerCase()}%`);
   }
 
-  sql += " GROUP BY products.id, products.name;";
+  // Query conteggio
+  const countSql = `
+    SELECT COUNT(DISTINCT products.id) AS total
+    FROM boardgames_shop.products
+    JOIN product_medias ON products.id = product_medias.id_product
+    JOIN product_category ON products.id = product_category.id_product
+    JOIN categories ON product_category.id_category = categories.id
+    ${whereClause}
+  `;
 
-  connection.query(sql, params, (err, results) => {
+  connection.query(countSql, params, (err, countResult) => {
     if (err) {
-      console.error("Errore durante la query:", err);
+      console.error("Errore durante il conteggio:", err);
       return res.status(500).json({ error: "Errore nel database" });
     }
 
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const total = countResult[0].total;
+    const limit = 20;
+    const currentPage = parseInt(page) > 0 ? parseInt(page) : 1;
+    const offset = (currentPage - 1) * limit;
 
-    const formattedResults = results.map((product) => ({
-      ...product,
-      slug: slugify(product.name), // <-- Aggiunto qui
-      file_paths: product.file_paths
-        ? product.file_paths.split(",").map((f) => `${baseUrl}/${f}`)
-        : [],
-      categories: product.category_names
-        ? product.category_names.split(",")
-        : [],
-    }));
+    let sql = `
+      SELECT products.*,
+             GROUP_CONCAT(DISTINCT product_medias.file_path) AS file_paths,
+             GROUP_CONCAT(DISTINCT categories.name) AS category_names
+      FROM boardgames_shop.products
+      JOIN product_medias ON products.id = product_medias.id_product
+      JOIN product_category ON products.id = product_category.id_product
+      JOIN categories ON product_category.id_category = categories.id
+      ${whereClause}
+      GROUP BY products.id, products.name
+    `;
 
-    res.json(formattedResults);
+    // Ordinamento
+    if (sort) {
+      switch (sort) {
+        case "name_asc":
+          sql += " ORDER BY products.name ASC";
+          break;
+        case "name_desc":
+          sql += " ORDER BY products.name DESC";
+          break;
+        case "price_asc":
+          sql += " ORDER BY products.price ASC";
+          break;
+        case "price_desc":
+          sql += " ORDER BY products.price DESC";
+          break;
+      }
+    }
+
+    sql += " LIMIT ? OFFSET ?";
+    connection.query(sql, [...params, limit, offset], (err, results) => {
+      if (err) {
+        console.error("Errore durante la query:", err);
+        return res.status(500).json({ error: "Errore nel database" });
+      }
+
+      const baseUrl = `${req.protocol}://${req.get("host")}`;
+      const formattedResults = results.map((product) => ({
+        ...product,
+        slug: slugify(product.name),
+        price: product.price ? parseFloat(product.price) : null,
+        file_paths: product.file_paths
+          ? product.file_paths.split(",").map((f) => `${baseUrl}/${f}`)
+          : [],
+        categories: product.category_names
+          ? product.category_names.split(",")
+          : [],
+      }));
+
+      res.json({
+        page: currentPage,
+        perPage: limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        results: formattedResults,
+      });
+    });
   });
 }
+
+
 
 // crea un nuovo gioco
 const store = (req, res) => {
