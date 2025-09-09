@@ -1,6 +1,7 @@
 const connection = require("../db/connection");
 
-// mostra la lista di tutti i giochi con filtri
+const { slugify} = require("../utils/slug.js")
+
 function index(req, res) {
   const { name, editor, age, players, difficulty } = req.query;
   let sql = `
@@ -16,31 +17,26 @@ function index(req, res) {
 
   const params = [];
 
-  // filtro per nome (ricerca parziale, case-insensitive)
   if (name) {
     sql += " AND LOWER(products.name) LIKE ?";
     params.push(`%${name.toLowerCase()}%`);
   }
 
-  // filtro per editor (ricerca parziale, case-insensitive)
   if (editor) {
     sql += " AND LOWER(products.editor) LIKE ?";
     params.push(`%${editor.toLowerCase()}%`);
   }
 
-  // filtro per età minima
   if (age) {
     sql += " AND products.age >= ?";
     params.push(parseInt(age));
   }
 
-  // filtro per numero minimo di giocatori
   if (players) {
     sql += " AND products.players >= ?";
     params.push(parseInt(players));
   }
 
-  // filtro per difficoltà (ricerca parziale, case-insensitive)
   if (difficulty) {
     sql += " AND LOWER(products.difficulty) LIKE ?";
     params.push(`%${difficulty.toLowerCase()}%`);
@@ -58,6 +54,7 @@ function index(req, res) {
 
     const formattedResults = results.map((product) => ({
       ...product,
+      slug: slugify(product.name), // <-- Aggiunto qui
       file_paths: product.file_paths
         ? product.file_paths.split(",").map((f) => `${baseUrl}/${f}`)
         : [],
@@ -210,10 +207,11 @@ const store = (req, res) => {
     }
   );
 };
-// mostra un singolo gioco tramite l id
+
 const show = (req, res) => {
-  const id = req.params.id;
-  //GROUP_CONCAT per ottenere un array di stringhe
+  const slug = req.params.slug; 
+
+  // Query per recuperare tutti i giochi
   const sql = `
     SELECT products.*,
            GROUP_CONCAT(DISTINCT product_medias.file_path) AS file_paths,  
@@ -223,25 +221,21 @@ const show = (req, res) => {
     JOIN product_medias ON products.id = product_medias.id_product
     JOIN product_category ON products.id = product_category.id_product
     JOIN categories ON product_category.id_category = categories.id
-    WHERE products.id=?
+    GROUP BY products.id
   `;
 
-  connection.query(sql, [id], (err, results) => {
+  connection.query(sql, (err, results) => {
     if (err) {
       console.error("Errore durante la query:", err);
       return res.status(500).json({ error: "Errore nel database" });
     }
 
-    if (results.length === 0 || results[0].id === null) {
-      return res.status(404).json({ error: "Gioco non trovato" });
-    }
-
+    // Normalizziamo i risultati e cerchiamo quello che corrisponde allo slug
     const baseUrl = `${req.protocol}://${req.get("host")}`;
 
     const formattedResults = results.map((product) => ({
-      //parsare price in tipo number da string nel db sono salvati in decimal
-
       ...product,
+      slug: slugify(product.name), // <-- Generiamo slug dal name
       file_paths: product.file_paths
         ? product.file_paths.split(",").map((f) => `${baseUrl}/${f}`)
         : [],
@@ -249,16 +243,21 @@ const show = (req, res) => {
         ? product.category_names.split(",")
         : [],
       id_category: product.id_category ? product.id_category.split(",") : [],
+      price: Number(product.price),
+      original_price: Number(product.original_price),
     }));
 
-    formattedResults[0].price = Number(formattedResults[0].price);
-    formattedResults[0].original_price = Number(
-      formattedResults[0].original_price
-    );
+    // Cerchiamo il prodotto giusto confrontando slug
+    const product = formattedResults.find((p) => p.slug === slug);
 
-    res.json(formattedResults);
+    if (!product) {
+      return res.status(404).json({ error: "Gioco non trovato" });
+    }
+
+    res.json(product);
   });
 };
+
 
 // mostra i 4 gioco piu recenti
 const showNew = (req, res) => {
