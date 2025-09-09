@@ -2,6 +2,8 @@ const connection = require("../db/connection");
 
 const dotenv = require("dotenv");
 dotenv.config();
+const { slugify } = require("../utils/slug.js"); 
+
 
 
 // mostriamo l'elenco delle categorie (GET)
@@ -18,7 +20,6 @@ const index = (req, res) => {
 };
 
 
-const { slugify } = require("../utils/slug.js"); // 👈 importa slugify
 
 // Mostriamo la singola categoria con anche tutti i prodotti che hanno quella categoria (GET)
 const show = (req, res) => {
@@ -77,33 +78,44 @@ const show = (req, res) => {
 
 //creiamo una nuova categoria (POST)
 const store = (req, res) => {
-  const {name, description} = req.body;
-  if (!name || !description) {
-    return res.status(400).json({ error: "Dati mancanti" });
+  const { name, description } = req.body;
+
+  let errors = [];
+  if (!name || typeof name !== "string") errors.push("name mancante o non valido (deve essere stringa)");
+  if (!description || typeof description !== "string") errors.push("description mancante o non valido (deve essere stringa)");
+
+  if (errors.length > 0) {
+    return res.status(400).json({ error: "Dati mancanti o non validi", dettagli: errors });
   }
 
   const sql = `
-    INSERT INTO categories (name , description)
-    VALUES(?, ?)
+    INSERT INTO categories (name, description)
+    VALUES (?, ?)
   `;
 
   connection.query(sql, [name, description], (err, result) => {
-    if(err){
-      console.log("errore durante l'inserimento:", err)
-      return res.status(500).json({error: "Errore nel database"})
+    if (err) {
+      console.log("errore durante l'inserimento:", err);
+      return res.status(500).json({ error: "Errore nel database" });
     }
 
-    res.status(201).json({message: "Categoria creata con successo", id: result.insertId})
+    res.status(201).json({ message: "Categoria creata con successo", id: result.insertId });
   });
-}
+};
 
-//aggiorniamo tutti i campi di una categoria (Put)
+
+// aggiorniamo tutti i campi di una categoria (PUT)
 const update = (req, res) => {
   const id = parseInt(req.params.id);
   const { name, description } = req.body;
 
-  if (!name || !description) {
-    return res.status(400).json({ error: "Dati mancanti" });
+  let errors = [];
+  if (!id || isNaN(id)) errors.push("id non valido (deve essere numero)");
+  if (!name || typeof name !== "string") errors.push("name mancante o non valido (deve essere stringa)");
+  if (!description || typeof description !== "string") errors.push("description mancante o non valido (deve essere stringa)");
+
+  if (errors.length > 0) {
+    return res.status(400).json({ error: "Dati mancanti o non validi", dettagli: errors });
   }
 
   const sql = `
@@ -124,7 +136,7 @@ const update = (req, res) => {
 
     res.json({ message: "Categoria aggiornata con successo" });
   });
-}
+};
 
 // eliminiamo una categoria (DELETE)
 const destroy = (req, res) => {
