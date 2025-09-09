@@ -6,8 +6,8 @@ const productsController = require("../controller/productsController.js");
 router.get("/products", productsController.index);
 // Rotta per ottenere i nuovi prodotti inseriti
 router.get("/products/new", productsController.showNew);
-// Rotta per ottenere il singolo prodotto
-router.get("/products/:id", productsController.show);
+// Rotta per ottenere il singolo prodotto tramite slug
+router.get("/products/:slug", productsController.show);
 // Rotta per creare un nuovo prodotto
 router.post("/products/insert", productsController.store);
 // Rotta per cambiare interamente un prodotto tramite id
