@@ -259,7 +259,7 @@ const show = (req, res) => {
 };
 
 
-// mostra i 4 gioco piu recenti
+// mostra i 4 giochi più recenti
 const showNew = (req, res) => {
   const sql = `
     SELECT products.*,
@@ -281,7 +281,7 @@ const showNew = (req, res) => {
 
     const formattedResults = results.map((product) => ({
       ...product,
-
+      slug: slugify(product.name), 
       file_paths: product.file_paths
         ? product.file_paths.split(",").map((f) => `${baseUrl}/${f}`)
         : [],
