@@ -18,7 +18,9 @@ const index = (req, res) => {
 };
 
 
-//mostriamo la singola categoria con anche tutti i prodotti che hanno quella categoria (GET)
+const { slugify } = require("../utils/slug.js"); // 👈 importa slugify
+
+// Mostriamo la singola categoria con anche tutti i prodotti che hanno quella categoria (GET)
 const show = (req, res) => {
   const id = parseInt(req.params.id);
 
@@ -57,6 +59,7 @@ const show = (req, res) => {
 
       const formattedProducts = productResults.map((product) => ({
         ...product,
+        slug: slugify(product.name), 
         file_paths: product.file_paths
           ? product.file_paths.split(",").map((f) => `${baseUrl}/${f}`)
           : [],
@@ -70,6 +73,7 @@ const show = (req, res) => {
     });
   });
 };
+
 
 //creiamo una nuova categoria (POST)
 const store = (req, res) => {
