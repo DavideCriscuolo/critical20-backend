@@ -3,6 +3,6 @@ const router = express.Router();
 const sendEmailController = require("../controller/sendEmailController.js");
 
 // Rotta per inviare email
-router.post("/sendEmail", sendEmailController.sendEmail);
+router.post("/sendEmailWelcome", sendEmailController.sendEmailWelcome);
 
 module.exports = router;
