@@ -35,16 +35,14 @@ const show = (req, res) => {
   });
 }
 
-// creiamo un nuovo invoice (POST)
 const storeCheckout = (req, res) => {
-  const { order_date, status, user_name, user_email, id_discount_code, items } = req.body;
+  const { order_date, status, user_name, user_email, discount_code, items } = req.body;
 
   const errors = [];
   if (!order_date) errors.push("order_date mancante");
   if (!status || typeof status !== "string") errors.push("status mancante o non valido");
   if (!user_name || typeof user_name !== "string") errors.push("user_name mancante o non valido");
   if (!user_email || typeof user_email !== "string") errors.push("user_email mancante o non valido");
-  if (id_discount_code === undefined || isNaN(Number(id_discount_code))) errors.push("id_discount_code mancante o non valido");
   if (!items || !Array.isArray(items) || items.length === 0) {
     errors.push("items mancante o vuoto");
   } else {
@@ -62,6 +60,9 @@ const storeCheckout = (req, res) => {
     return res.status(400).json({ error: "Dati mancanti o non validi", dettagli: errors });
   }
 
+  // items { "id_order": 3, "quantity": 1 }
+  
+
   // Recupero i prezzi reali dal DB
   const productIds = items.map(item => item.id_order);
   const sqlPrices = `SELECT id, price FROM products WHERE id IN (?)`;
@@ -72,13 +73,13 @@ const storeCheckout = (req, res) => {
       return res.status(500).json({ error: "Errore nel database" });
     }
 
-    // Creo una mappa { id: price } per accesso rapido
+    // Creo una mappa { id: price }
     const priceMap = {};
     productResults.forEach(p => {
       priceMap[p.id] = parseFloat(p.price);
     });
 
-    // Calcolo totale usando i prezzi reali
+    // Calcolo totale base (senza sconti né spedizione)
     let total_price = 0;
     const orderItemsData = items.map(item => {
       const realPrice = priceMap[item.id_order];
@@ -86,45 +87,119 @@ const storeCheckout = (req, res) => {
         errors.push(`Prezzo non trovato per prodotto ID ${item.id_order}`);
       }
       total_price += realPrice * item.quantity;
-      return [null, item.id_order, item.quantity, realPrice]; 
+      return [null, item.id_order, item.quantity, realPrice];
     });
 
     if (errors.length > 0) {
       return res.status(400).json({ error: "Prodotti non validi", dettagli: errors });
     }
 
-    // Inserisco la invoice
-    const sqlInvoice = `
-      INSERT INTO invoices (order_date, status, total_price, user_name, user_email, id_discount_code)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `;
-
-    connection.query(sqlInvoice, [order_date, status, total_price, user_name, user_email, id_discount_code], (err, result) => {
-      if (err) {
-        console.error("Errore durante la creazione della invoice:", err);
-        return res.status(500).json({ error: "Errore nel database" });
-      }
-
-      const invoiceId = result.insertId;
-      const finalOrderItems = orderItemsData.map(item => [invoiceId, ...item.slice(1)]);
-
-      // Inserisco gli order_items
-      const sqlOrderItems = `
-        INSERT INTO order_items (id_invoice, id_order, quantity, unit_price)
-        VALUES ?
+    // --- Gestione codice sconto ---
+    if (discount_code) {
+      const sqlDiscount = `
+        SELECT id, value, valid_from, valid_to, is_used
+        FROM discount_codes
+        WHERE code = ?
       `;
 
-      connection.query(sqlOrderItems, [finalOrderItems], (err2) => {
-        if (err2) {
-          console.error("Errore durante l'inserimento degli order items:", err2);
+      connection.query(sqlDiscount, [discount_code], (err, discountResults) => {
+        if (err) {
+          console.error("Errore nel recupero del codice sconto:", err);
           return res.status(500).json({ error: "Errore nel database" });
         }
 
-        res.status(201).json({ message: "Checkout completato con successo", invoice_id: invoiceId, total_price });
+        if (discountResults.length === 0) {
+          return res.status(400).json({ error: "Codice sconto non valido o inesistente" });
+        }
+
+        const discount = discountResults[0];
+        const now = new Date();
+
+        if (discount.is_used) {
+          return res.status(400).json({ error: "Codice sconto già utilizzato" });
+        }
+        if (discount.valid_from && new Date(discount.valid_from) > now) {
+          return res.status(400).json({ error: "Codice sconto non ancora valido" });
+        }
+        if (discount.valid_to && new Date(discount.valid_to) < now) {
+          return res.status(400).json({ error: "Codice sconto scaduto" });
+        }
+
+        // Applico lo sconto %
+        const discountValue = parseFloat(discount.value);
+        total_price = total_price - (total_price * discountValue / 100);
+
+        // Applico le spese di spedizione
+        let shopping_fee = total_price >= 50 ? 0 : 4.99;
+        total_price += shopping_fee;
+
+        createInvoice(order_date, status, total_price, user_name, user_email, discount.id, orderItemsData, res, true, shopping_fee);
       });
-    });
+    } else {
+      // Nessun codice sconto
+      let shopping_fee = total_price >= 50 ? 0 : 4.99;
+      total_price += shopping_fee;
+
+      createInvoice(order_date, status, total_price, user_name, user_email, null, orderItemsData, res, false, shopping_fee);
+    }
   });
 };
+
+// Funzione helper per creare la invoice
+function createInvoice(order_date, status, total_price, user_name, user_email, id_discount_code, orderItemsData, res, markDiscountUsed, shopping_fee) {
+  const sqlInvoice = `
+    INSERT INTO invoices (order_date, status, total_price, user_name, user_email, id_discount_code)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `;
+
+  console.log(orderItemsData)
+
+  connection.query(sqlInvoice, [order_date, status, total_price, user_name, user_email, id_discount_code], (err, result) => {
+    if (err) {
+      console.error("Errore durante la creazione della invoice:", err);
+      return res.status(500).json({ error: "Errore nel database" });
+    }
+
+    const invoiceId = result.insertId;
+    const finalOrderItems = orderItemsData.map(item => [invoiceId, ...item.slice(1)]);
+
+    const sqlOrderItems = `
+      INSERT INTO order_items (id_invoice, id_order, quantity, unit_price)
+      VALUES ?
+    `;
+
+    connection.query(sqlOrderItems, [finalOrderItems], (err2) => {
+      if (err2) {
+        console.error("Errore durante l'inserimento degli order items:", err2);
+        return res.status(500).json({ error: "Errore nel database" });
+      }
+
+      // Se c'è un codice sconto valido, segno come utilizzato
+      if (markDiscountUsed && id_discount_code) {
+        const sqlUpdateDiscount = `
+          UPDATE discount_codes SET is_used = 1 WHERE id = ?
+        `;
+        connection.query(sqlUpdateDiscount, [id_discount_code], (err3) => {
+          if (err3) {
+            console.error("Errore durante l'aggiornamento del codice sconto:", err3);
+          }
+        });
+      }
+
+      res.status(201).json({
+        message: "Checkout completato con successo",
+        invoice_id: invoiceId,
+        //aggiungere array di prodotti indicando nome, prezzo e quantità
+        total_price: Number(total_price.toFixed(2)),
+        shopping_fee: Number(shopping_fee.toFixed(2))
+      });
+
+    });
+  });
+}
+
+
+
 
 // aggiorniamo completamente un invoice sconto già esistente tramite id (PUT)
 const update = (req, res) => {

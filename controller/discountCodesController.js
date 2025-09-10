@@ -11,22 +11,26 @@ const generateCode = (length = 15) => {
 };
 
 // Funzione per generare un codice unico, verificando che non esista già
-const generateUniqueCode = (callback, length = 15) => {
-  const tryGenerate = () => {
-    const code = generateCode(length);
-    const sql = "SELECT COUNT(*) AS count FROM discount_codes WHERE code = ?";
-    connection.query(sql, [code], (err, results) => {
-      if (err) return callback(err, null);
-      if (results[0].count > 0) {
-        // se il codice esiste già, rigeneriamo
-        tryGenerate();
-      } else {
-        callback(null, code);
-      }
-    });
-  };
-  tryGenerate();
+const generateUniqueCode = (length = 15) => {
+  return new Promise((resolve, reject) => {
+    const tryGenerate = () => {
+      const code = generateCode(length);
+      const sql = "SELECT COUNT(*) AS count FROM discount_codes WHERE code = ?";
+      connection.query(sql, [code], (err, results) => {
+        if (err) return reject(err);
+        if (results[0].count > 0) {
+          tryGenerate();
+        } else {
+          resolve(code);
+        }
+      });
+    };
+    tryGenerate();
+  });
 };
+
+
+
 
 // Validazione comune
 const validateDiscountData = ({ value, valid_from, valid_to, is_used }, checkIsUsed = true) => {
@@ -162,4 +166,4 @@ const destroy = (req, res) => {
   });
 };
 
-module.exports = { index, show, store, update, modify, destroy };
+module.exports = { index, show, store, update, modify, destroy, generateUniqueCode };
