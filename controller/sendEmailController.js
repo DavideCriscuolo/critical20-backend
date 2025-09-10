@@ -66,4 +66,67 @@ const sendEmailWelcome = async (req, res) => {
   }
 };
 
-module.exports = { sendEmailWelcome };
+async function sendOrderEmail({ toCustomer, toAdmin, orderData }) {
+  const { user_name, user_email, productList, total_price, shopping_fee } = orderData;
+
+  // Genera tabella prodotti in HTML
+  const productRows = productList.map(p => `
+    <tr>
+      <td>${p.name}</td>
+      <td>${p.quantity}</td>
+      <td>€${p.unit_price.toFixed(2)}</td>
+      <td>€${p.subtotal.toFixed(2)}</td>
+    </tr>
+  `).join("");
+
+  const htmlContent = `
+    <h2>Ciao ${user_name}, il tuo ordine è andato a buon fine!</h2>
+    <p>Ecco il riepilogo del tuo ordine:</p>
+    <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse;">
+      <thead>
+        <tr>
+          <th>Prodotto</th>
+          <th>Quantità</th>
+          <th>Prezzo unitario</th>
+          <th>Subtotale</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${productRows}
+      </tbody>
+    </table>
+    <p>Spese di spedizione: €${shopping_fee.toFixed(2)}</p>
+    <h3>Totale: €${total_price.toFixed(2)}</h3>
+    <p>Grazie per aver acquistato con noi!</p>
+  `;
+
+  // Email per il cliente
+  const customerMsg = {
+    to: toCustomer,
+    from: "critical20ecommerce@gmail.com", 
+    subject: "Conferma Ordine - Critical20 Ecommerce",
+    html: htmlContent,
+  };
+
+  // Email per l’admin
+  const adminMsg = {
+    to: toAdmin,
+    from: "critical20ecommerce@gmail.com",
+    subject: `Nuovo ordine da ${user_name}`,
+    html: `
+      <h2>Nuovo ordine ricevuto</h2>
+      <p>Cliente: ${user_name} (${user_email})</p>
+      ${htmlContent}
+    `,
+  };
+
+  try {
+    await sendgrid.send(customerMsg);
+    await sendgrid.send(adminMsg);
+    console.log("Email di conferma e notifica inviate con successo");
+  } catch (err) {
+    console.error("Errore nell'invio email ordine:", err);
+  }
+}
+
+module.exports = { sendEmailWelcome, sendOrderEmail };

@@ -1,4 +1,5 @@
 const connection = require("../db/connection");
+const { sendOrderEmail } = require("./sendEmailController");
 
 
 // mostra la lista di tutti gli invoices
@@ -38,11 +39,16 @@ const show = (req, res) => {
 const storeCheckout = (req, res) => {
   const { order_date, status, user_name, user_email, discount_code, items } = req.body;
 
+  // Array per collezionare errori di validazione
   const errors = [];
+
+  // Validazione campi principali
   if (!order_date) errors.push("order_date mancante");
   if (!status || typeof status !== "string") errors.push("status mancante o non valido");
   if (!user_name || typeof user_name !== "string") errors.push("user_name mancante o non valido");
   if (!user_email || typeof user_email !== "string") errors.push("user_email mancante o non valido");
+
+  // Validazione items
   if (!items || !Array.isArray(items) || items.length === 0) {
     errors.push("items mancante o vuoto");
   } else {
@@ -56,38 +62,53 @@ const storeCheckout = (req, res) => {
     });
   }
 
+  // Se ci sono errori, interrompiamo subito
   if (errors.length > 0) {
     return res.status(400).json({ error: "Dati mancanti o non validi", dettagli: errors });
   }
 
-  // items { "id_order": 3, "quantity": 1 }
-  
-
-  // Recupero i prezzi reali dal DB
+  // Estrazione id prodotti da recuperare nel DB
   const productIds = items.map(item => item.id_order);
-  const sqlPrices = `SELECT id, price FROM products WHERE id IN (?)`;
+  const sqlPrices = `SELECT id, name, price FROM products WHERE id IN (?)`;
 
+  // Query al DB per recuperare nome e prezzo reali dei prodotti
   connection.query(sqlPrices, [productIds], (err, productResults) => {
     if (err) {
       console.error("Errore nel recupero prezzi:", err);
       return res.status(500).json({ error: "Errore nel database" });
     }
 
-    // Creo una mappa { id: price }
-    const priceMap = {};
+    // Creo una mappa { id: { name, price } }
+    const productMap = {};
     productResults.forEach(p => {
-      priceMap[p.id] = parseFloat(p.price);
+      productMap[p.id] = { name: p.name, price: parseFloat(p.price) };
     });
 
-    // Calcolo totale base (senza sconti né spedizione)
+    // Calcolo del totale base e costruzione della lista prodotti
     let total_price = 0;
+    const productList = [];
     const orderItemsData = items.map(item => {
-      const realPrice = priceMap[item.id_order];
-      if (!realPrice) {
-        errors.push(`Prezzo non trovato per prodotto ID ${item.id_order}`);
+      const product = productMap[item.id_order];
+      if (!product) {
+        errors.push(`Prodotto non trovato per ID ${item.id_order}`);
+        return;
       }
-      total_price += realPrice * item.quantity;
-      return [null, item.id_order, item.quantity, realPrice];
+
+      // Sommo al totale
+      total_price += product.price * item.quantity;
+
+      // Array per insert nel DB
+      const dbRow = [null, item.id_order, item.quantity, product.price];
+
+      // Oggetto leggibile per la risposta JSON
+      productList.push({
+        name: product.name,
+        unit_price: product.price,
+        quantity: item.quantity,
+        subtotal: Number((product.price * item.quantity).toFixed(2))
+      });
+
+      return dbRow;
     });
 
     if (errors.length > 0) {
@@ -125,79 +146,114 @@ const storeCheckout = (req, res) => {
           return res.status(400).json({ error: "Codice sconto scaduto" });
         }
 
-        // Applico lo sconto %
+        // Applico lo sconto percentuale
         const discountValue = parseFloat(discount.value);
         total_price = total_price - (total_price * discountValue / 100);
 
-        // Applico le spese di spedizione
+        // Spese di spedizione (gratis sopra i 50€)
         let shopping_fee = total_price >= 50 ? 0 : 4.99;
         total_price += shopping_fee;
 
-        createInvoice(order_date, status, total_price, user_name, user_email, discount.id, orderItemsData, res, true, shopping_fee);
+        // Creo la invoice passando anche la productList
+        createInvoice(order_date, status, total_price, user_name, user_email, discount.id, orderItemsData, res, true, shopping_fee, productList);
       });
     } else {
       // Nessun codice sconto
       let shopping_fee = total_price >= 50 ? 0 : 4.99;
       total_price += shopping_fee;
 
-      createInvoice(order_date, status, total_price, user_name, user_email, null, orderItemsData, res, false, shopping_fee);
+      createInvoice(order_date, status, total_price, user_name, user_email, null, orderItemsData, res, false, shopping_fee, productList);
     }
   });
 };
 
+
 // Funzione helper per creare la invoice
-function createInvoice(order_date, status, total_price, user_name, user_email, id_discount_code, orderItemsData, res, markDiscountUsed, shopping_fee) {
+// Funzione helper per creare la invoice
+function createInvoice(
+  order_date,
+  status,
+  total_price,
+  user_name,
+  user_email,
+  id_discount_code,
+  orderItemsData,
+  res,
+  markDiscountUsed,
+  shopping_fee,
+  productList
+) {
   const sqlInvoice = `
     INSERT INTO invoices (order_date, status, total_price, user_name, user_email, id_discount_code)
     VALUES (?, ?, ?, ?, ?, ?)
   `;
 
-  console.log(orderItemsData)
-
-  connection.query(sqlInvoice, [order_date, status, total_price, user_name, user_email, id_discount_code], (err, result) => {
-    if (err) {
-      console.error("Errore durante la creazione della invoice:", err);
-      return res.status(500).json({ error: "Errore nel database" });
-    }
-
-    const invoiceId = result.insertId;
-    const finalOrderItems = orderItemsData.map(item => [invoiceId, ...item.slice(1)]);
-
-    const sqlOrderItems = `
-      INSERT INTO order_items (id_invoice, id_order, quantity, unit_price)
-      VALUES ?
-    `;
-
-    connection.query(sqlOrderItems, [finalOrderItems], (err2) => {
-      if (err2) {
-        console.error("Errore durante l'inserimento degli order items:", err2);
+  connection.query(
+    sqlInvoice,
+    [order_date, status, total_price, user_name, user_email, id_discount_code],
+    (err, result) => {
+      if (err) {
+        console.error("Errore durante la creazione della invoice:", err);
         return res.status(500).json({ error: "Errore nel database" });
       }
 
-      // Se c'è un codice sconto valido, segno come utilizzato
-      if (markDiscountUsed && id_discount_code) {
-        const sqlUpdateDiscount = `
-          UPDATE discount_codes SET is_used = 1 WHERE id = ?
-        `;
-        connection.query(sqlUpdateDiscount, [id_discount_code], (err3) => {
-          if (err3) {
-            console.error("Errore durante l'aggiornamento del codice sconto:", err3);
-          }
+      const invoiceId = result.insertId;
+      const finalOrderItems = orderItemsData.map(item => [invoiceId, ...item.slice(1)]);
+
+      const sqlOrderItems = `
+        INSERT INTO order_items (id_invoice, id_order, quantity, unit_price)
+        VALUES ?
+      `;
+
+      // 🔹 Qui la callback diventa async
+      connection.query(sqlOrderItems, [finalOrderItems], async (err2) => {
+        if (err2) {
+          console.error("Errore durante l'inserimento degli order items:", err2);
+          return res.status(500).json({ error: "Errore nel database" });
+        }
+
+        // Se c'è un codice sconto valido, segno come utilizzato
+        if (markDiscountUsed && id_discount_code) {
+          const sqlUpdateDiscount = `
+            UPDATE discount_codes SET is_used = 1 WHERE id = ?
+          `;
+          connection.query(sqlUpdateDiscount, [id_discount_code], (err3) => {
+            if (err3) {
+              console.error("Errore durante l'aggiornamento del codice sconto:", err3);
+            }
+          });
+        }
+
+        // --- Invio email di riepilogo ordine ---
+        try {
+          await sendOrderEmail({
+            toCustomer: user_email,
+            toAdmin: "critical20ecommerce@gmail.com",
+            orderData: {
+              user_name,
+              user_email,
+              productList,
+              total_price,
+              shopping_fee
+            }
+          });
+        } catch (emailErr) {
+          console.error("Errore nell'invio email ordine:", emailErr);
+          // Non blocchiamo la response in caso di errore
+        }
+
+        // Risposta al client
+        res.status(201).json({
+          message: "Checkout completato con successo",
+          invoice_id: invoiceId,
+          productList,
+          total_price: Number(total_price.toFixed(2)),
+          shopping_fee: Number(shopping_fee.toFixed(2))
         });
-      }
-
-      res.status(201).json({
-        message: "Checkout completato con successo",
-        invoice_id: invoiceId,
-        //aggiungere array di prodotti indicando nome, prezzo e quantità
-        total_price: Number(total_price.toFixed(2)),
-        shopping_fee: Number(shopping_fee.toFixed(2))
       });
-
-    });
-  });
+    }
+  );
 }
-
 
 
 
