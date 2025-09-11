@@ -1,7 +1,6 @@
 const connection = require("../db/connection");
 const { sendOrderEmail } = require("./sendEmailController");
 
-
 // mostra la lista di tutti gli invoices
 const index = (req, res) => {
   const sql = "SELECT * FROM invoices;";
@@ -18,10 +17,10 @@ const index = (req, res) => {
 // restituisce il singolo invoice tramite id
 const show = (req, res) => {
   const id = req.params.id;
-  const sql= `
+  const sql = `
     SELECT * FROM invoices
     WHERE invoices.id = ?
-  `
+  `;
 
   connection.query(sql, [id], (err, results) => {
     if (err) {
@@ -34,19 +33,38 @@ const show = (req, res) => {
     }
     res.json(results);
   });
-}
+};
 
 const storeCheckout = (req, res) => {
-  const { order_date, status, user_name, user_email, discount_code, items } = req.body;
+  const {
+    order_date,
+    status,
+    user_name,
+    user_email,
+    address_shipping,
+    address,
+    phone,
+    discount_code,
+    items,
+  } = req.body;
 
   // Array per collezionare errori di validazione
   const errors = [];
 
   // Validazione campi principali
   if (!order_date) errors.push("order_date mancante");
-  if (!status || typeof status !== "string") errors.push("status mancante o non valido");
-  if (!user_name || typeof user_name !== "string") errors.push("user_name mancante o non valido");
-  if (!user_email || typeof user_email !== "string") errors.push("user_email mancante o non valido");
+  if (!status || typeof status !== "string")
+    errors.push("status mancante o non valido");
+  if (!user_name || typeof user_name !== "string")
+    errors.push("user_name mancante o non valido");
+  if (!user_email || typeof user_email !== "string")
+    errors.push("user_email mancante o non valido");
+  if (!address_shipping || typeof address_shipping !== "string")
+    errors.push("address_shipping mancante o non valido");
+  if (!address || typeof address !== "string")
+    errors.push("address mancante o non valido");
+  if (!phone || typeof phone !== "string")
+    errors.push("phone mancante o non valido");
 
   // Validazione items
   if (!items || !Array.isArray(items) || items.length === 0) {
@@ -56,7 +74,11 @@ const storeCheckout = (req, res) => {
       if (!item.id_order || isNaN(Number(item.id_order))) {
         errors.push(`items[${index}].id_order mancante o non valido`);
       }
-      if (item.quantity === undefined || isNaN(Number(item.quantity)) || item.quantity <= 0) {
+      if (
+        item.quantity === undefined ||
+        isNaN(Number(item.quantity)) ||
+        item.quantity <= 0
+      ) {
         errors.push(`items[${index}].quantity mancante o non valido`);
       }
     });
@@ -64,11 +86,13 @@ const storeCheckout = (req, res) => {
 
   // Se ci sono errori, interrompiamo subito
   if (errors.length > 0) {
-    return res.status(400).json({ error: "Dati mancanti o non validi", dettagli: errors });
+    return res
+      .status(400)
+      .json({ error: "Dati mancanti o non validi", dettagli: errors });
   }
 
   // Estrazione id prodotti da recuperare nel DB
-  const productIds = items.map(item => item.id_order);
+  const productIds = items.map((item) => item.id_order);
   const sqlPrices = `SELECT id, name, price FROM products WHERE id IN (?)`;
 
   // Query al DB per recuperare nome e prezzo reali dei prodotti
@@ -80,14 +104,14 @@ const storeCheckout = (req, res) => {
 
     // Creo una mappa { id: { name, price } }
     const productMap = {};
-    productResults.forEach(p => {
+    productResults.forEach((p) => {
       productMap[p.id] = { name: p.name, price: parseFloat(p.price) };
     });
 
     // Calcolo del totale base e costruzione della lista prodotti
     let total_price = 0;
     const productList = [];
-    const orderItemsData = items.map(item => {
+    const orderItemsData = items.map((item) => {
       const product = productMap[item.id_order];
       if (!product) {
         errors.push(`Prodotto non trovato per ID ${item.id_order}`);
@@ -105,14 +129,16 @@ const storeCheckout = (req, res) => {
         name: product.name,
         unit_price: product.price,
         quantity: item.quantity,
-        subtotal: Number((product.price * item.quantity).toFixed(2))
+        subtotal: Number((product.price * item.quantity).toFixed(2)),
       });
 
       return dbRow;
     });
 
     if (errors.length > 0) {
-      return res.status(400).json({ error: "Prodotti non validi", dettagli: errors });
+      return res
+        .status(400)
+        .json({ error: "Prodotti non validi", dettagli: errors });
     }
 
     // --- Gestione codice sconto ---
@@ -130,17 +156,23 @@ const storeCheckout = (req, res) => {
         }
 
         if (discountResults.length === 0) {
-          return res.status(400).json({ error: "Codice sconto non valido o inesistente" });
+          return res
+            .status(400)
+            .json({ error: "Codice sconto non valido o inesistente" });
         }
 
         const discount = discountResults[0];
         const now = new Date();
 
         if (discount.is_used) {
-          return res.status(400).json({ error: "Codice sconto già utilizzato" });
+          return res
+            .status(400)
+            .json({ error: "Codice sconto già utilizzato" });
         }
         if (discount.valid_from && new Date(discount.valid_from) > now) {
-          return res.status(400).json({ error: "Codice sconto non ancora valido" });
+          return res
+            .status(400)
+            .json({ error: "Codice sconto non ancora valido" });
         }
         if (discount.valid_to && new Date(discount.valid_to) < now) {
           return res.status(400).json({ error: "Codice sconto scaduto" });
@@ -148,25 +180,54 @@ const storeCheckout = (req, res) => {
 
         // Applico lo sconto percentuale
         const discountValue = parseFloat(discount.value);
-        total_price = total_price - (total_price * discountValue / 100);
+        total_price = total_price - (total_price * discountValue) / 100;
 
         // Spese di spedizione (gratis sopra i 50€)
         let shopping_fee = total_price >= 50 ? 0 : 4.99;
         total_price += shopping_fee;
 
         // Creo la invoice passando anche la productList
-        createInvoice(order_date, status, total_price, user_name, user_email, discount.id, orderItemsData, res, true, shopping_fee, productList);
+        createInvoice(
+          order_date,
+          status,
+          total_price,
+          user_name,
+          user_email,
+          address_shipping,
+          address,
+          phone,
+          discount.id,
+          orderItemsData,
+          res,
+          true,
+          shopping_fee,
+          productList
+        );
       });
     } else {
       // Nessun codice sconto
       let shopping_fee = total_price >= 50 ? 0 : 4.99;
       total_price += shopping_fee;
 
-      createInvoice(order_date, status, total_price, user_name, user_email, null, orderItemsData, res, false, shopping_fee, productList);
+      createInvoice(
+        order_date,
+        status,
+        total_price,
+        user_name,
+        user_email,
+        address_shipping,
+        address,
+        phone,
+        null,
+        orderItemsData,
+        res,
+        false,
+        shopping_fee,
+        productList
+      );
     }
   });
 };
-
 
 // Funzione helper per creare la invoice
 // Funzione helper per creare la invoice
@@ -176,6 +237,9 @@ function createInvoice(
   total_price,
   user_name,
   user_email,
+  address_shipping,
+  address,
+  phone,
   id_discount_code,
   orderItemsData,
   res,
@@ -184,13 +248,23 @@ function createInvoice(
   productList
 ) {
   const sqlInvoice = `
-    INSERT INTO invoices (order_date, status, total_price, user_name, user_email, id_discount_code)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO invoices (order_date, status, total_price, user_name, user_email, address_shipping, address, phone, id_discount_code)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
   connection.query(
     sqlInvoice,
-    [order_date, status, total_price, user_name, user_email, id_discount_code],
+    [
+      order_date,
+      status,
+      total_price,
+      user_name,
+      user_email,
+      address_shipping,
+      address,
+      phone,
+      id_discount_code,
+    ],
     (err, result) => {
       if (err) {
         console.error("Errore durante la creazione della invoice:", err);
@@ -198,7 +272,10 @@ function createInvoice(
       }
 
       const invoiceId = result.insertId;
-      const finalOrderItems = orderItemsData.map(item => [invoiceId, ...item.slice(1)]);
+      const finalOrderItems = orderItemsData.map((item) => [
+        invoiceId,
+        ...item.slice(1),
+      ]);
 
       const sqlOrderItems = `
         INSERT INTO order_items (id_invoice, id_order, quantity, unit_price)
@@ -208,7 +285,10 @@ function createInvoice(
       // 🔹 Qui la callback diventa async
       connection.query(sqlOrderItems, [finalOrderItems], async (err2) => {
         if (err2) {
-          console.error("Errore durante l'inserimento degli order items:", err2);
+          console.error(
+            "Errore durante l'inserimento degli order items:",
+            err2
+          );
           return res.status(500).json({ error: "Errore nel database" });
         }
 
@@ -219,7 +299,10 @@ function createInvoice(
           `;
           connection.query(sqlUpdateDiscount, [id_discount_code], (err3) => {
             if (err3) {
-              console.error("Errore durante l'aggiornamento del codice sconto:", err3);
+              console.error(
+                "Errore durante l'aggiornamento del codice sconto:",
+                err3
+              );
             }
           });
         }
@@ -232,10 +315,13 @@ function createInvoice(
             orderData: {
               user_name,
               user_email,
+              address_shipping,
+              address,
+              phone,
               productList,
               total_price,
-              shopping_fee
-            }
+              shopping_fee,
+            },
           });
         } catch (emailErr) {
           console.error("Errore nell'invio email ordine:", emailErr);
@@ -248,42 +334,75 @@ function createInvoice(
           invoice_id: invoiceId,
           productList,
           total_price: Number(total_price.toFixed(2)),
-          shopping_fee: Number(shopping_fee.toFixed(2))
+          shopping_fee: Number(shopping_fee.toFixed(2)),
         });
       });
     }
   );
 }
 
-
-
 // aggiorniamo completamente un invoice sconto già esistente tramite id (PUT)
 const update = (req, res) => {
   const { id } = req.params;
-  const { order_date, status, total_price, user_name, user_email, id_discount_code } = req.body;
+  const {
+    order_date,
+    status,
+    total_price,
+    user_name,
+    user_email,
+    address_shipping,
+    address,
+    phone,
+    id_discount_code,
+  } = req.body;
 
   let errors = [];
 
-  if (!order_date || isNaN(Date.parse(order_date))) errors.push("order_date mancante o non valido (formato data)");
-  if (!status || typeof status !== "string") errors.push("status mancante o non valido (deve essere stringa)");
-  if (total_price === undefined || isNaN(Number(total_price))) errors.push("total_price mancante o non valido (deve essere numero)");
-  if (!user_name || typeof user_name !== "string") errors.push("user_name mancante o non valido (deve essere stringa)");
-  if (!user_email || typeof user_email !== "string") errors.push("user_email mancante o non valido (deve essere stringa)");
-  if (id_discount_code === undefined || isNaN(Number(id_discount_code))) errors.push("id_discount_code mancante o non valido (deve essere numero)");
+  if (!order_date || isNaN(Date.parse(order_date)))
+    errors.push("order_date mancante o non valido (formato data)");
+  if (!status || typeof status !== "string")
+    errors.push("status mancante o non valido (deve essere stringa)");
+  if (total_price === undefined || isNaN(Number(total_price)))
+    errors.push("total_price mancante o non valido (deve essere numero)");
+  if (!user_name || typeof user_name !== "string")
+    errors.push("user_name mancante o non valido (deve essere stringa)");
+  if (!user_email || typeof user_email !== "string")
+    errors.push("user_email mancante o non valido (deve essere stringa)");
+  if (id_discount_code === undefined || isNaN(Number(id_discount_code)))
+    errors.push("id_discount_code mancante o non valido (deve essere numero)");
+  if (!address_shipping || typeof address_shipping !== "string")
+    errors.push("address_shipping mancante o non valido");
+  if (!address || typeof address !== "string")
+    errors.push("address mancante o non valido");
+  if (!phone || typeof phone !== "string")
+    errors.push("phone mancante o non valido");
 
   if (errors.length > 0) {
-    return res.status(400).json({ error: "Dati mancanti o non validi", dettagli: errors });
+    return res
+      .status(400)
+      .json({ error: "Dati mancanti o non validi", dettagli: errors });
   }
 
   const sql = `
     UPDATE invoices
-    SET order_date = ?, status = ?, total_price = ?, user_name = ?, user_email = ?, id_discount_code = ?
+    SET order_date = ?, status = ?, total_price = ?, user_name = ?, user_email = ?, address_shipping = ?, address = ?, phone = ?, id_discount_code = ?
     WHERE id = ?
   `;
 
   connection.query(
     sql,
-    [order_date, status, total_price, user_name, user_email, id_discount_code, id],
+    [
+      order_date,
+      status,
+      total_price,
+      user_name,
+      user_email,
+      address_shipping,
+      address,
+      phone,
+      id_discount_code,
+      id,
+    ],
     (err, result) => {
       if (err) {
         console.error("Errore durante l'update:", err);
@@ -299,12 +418,21 @@ const update = (req, res) => {
   );
 };
 
-
-
 // aggiorniamo solo alcuni campi di un invoice già esistente tramite id (PATCH)
 const modify = (req, res) => {
   const { id } = req.params;
-  const { order_date, status, total_price, user_name, user_email, id_discount_code } = req.body;
+  const {
+    order_date,
+    status,
+    total_price,
+    user_name,
+    user_email,
+    address_shipping,
+    address,
+    phone,
+
+    id_discount_code,
+  } = req.body;
 
   let updates = [];
   let values = [];
@@ -364,6 +492,33 @@ const modify = (req, res) => {
     }
   }
 
+  if (address_shipping !== undefined) {
+    if (typeof address_shipping !== "string") {
+      errors.push("address_shipping non valido (deve essere stringa)");
+    } else {
+      updates.push("address_shipping = ?");
+      values.push(address_shipping);
+    }
+  }
+
+  if (address !== undefined) {
+    if (typeof address !== "string") {
+      errors.push("address non valido (deve essere stringa)");
+    } else {
+      updates.push("address = ?");
+      values.push(address);
+    }
+  }
+
+  if (phone !== undefined) {
+    if (typeof phone !== "string") {
+      errors.push("phone non valido (deve essere stringa)");
+    } else {
+      updates.push("phone = ?");
+      values.push(phone);
+    }
+  }
+
   if (errors.length > 0) {
     return res.status(400).json({ error: "Dati non validi", dettagli: errors });
   }
@@ -394,9 +549,6 @@ const modify = (req, res) => {
   });
 };
 
-
-
-
 // eliminiamo il singolo invoice tramite id (DELETE)
 const destroy = (req, res) => {
   const { id } = req.params;
@@ -410,14 +562,13 @@ const destroy = (req, res) => {
     }
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({ error: `Invoice con id: ${id} non trovato` });
+      return res
+        .status(404)
+        .json({ error: `Invoice con id: ${id} non trovato` });
     }
 
     res.json({ message: `Invoice con id: ${id} eliminato con successo ` });
   });
-}
+};
 
-
-
-
-module.exports = { index, show, storeCheckout, update,modify, destroy};
+module.exports = { index, show, storeCheckout, update, modify, destroy };
