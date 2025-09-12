@@ -197,6 +197,7 @@ const storeCheckout = (req, res) => {
           address,
           phone,
           discount.id,
+          discountValue,
           orderItemsData,
           res,
           true,
@@ -218,6 +219,7 @@ const storeCheckout = (req, res) => {
         address_shipping,
         address,
         phone,
+        null,
         null,
         orderItemsData,
         res,
@@ -241,6 +243,7 @@ function createInvoice(
   address,
   phone,
   id_discount_code,
+  discountValue,
   orderItemsData,
   res,
   markDiscountUsed,
@@ -321,6 +324,7 @@ function createInvoice(
               productList,
               total_price,
               shopping_fee,
+              discountValue
             },
           });
         } catch (emailErr) {

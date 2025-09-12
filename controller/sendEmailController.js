@@ -44,9 +44,12 @@ const sendEmailWelcome = async (req, res) => {
       subject: "Email di Benvenuto",
       text: "Email di Benvenuto",
       html: `
-        <h1>Grazie per averci scelto</h1>
-        <p>Ecco il tuo codice sconto: <b>${newDiscountCode}</b></p>
-        <p>Valido dal ${valid_from} al ${valid_to}</p>
+        <h1>Benvenuto/a in Critical20! 🎲</h1>
+        <p>Siamo felici di averti nella nostra community 🎉</p>
+        <p>Ecco il tuo codice sconto personale del <b>10%</b> sul prossimo ordine:</p>
+        <p style="font-size:18px; font-weight:bold; color:#28a745;">${newDiscountCode}</p>
+        <p>Il codice è valido dal <b>${valid_from}</b> al <b>${valid_to}</b>.</p>
+        <p>Non perdere l’occasione, inizia subito a esplorare il nostro shop!</p>
       `,
     };
 
@@ -67,23 +70,24 @@ const sendEmailWelcome = async (req, res) => {
 };
 
 async function sendOrderEmail({ toCustomer, toAdmin, orderData }) {
-  const { user_name, user_email, productList, total_price, shopping_fee } = orderData;
+  const { user_name, user_email, productList, total_price, shopping_fee, phone, address, address_shipping, discountValue } = orderData;
 
   // Genera tabella prodotti in HTML
   const productRows = productList.map(p => `
     <tr>
       <td>${p.name}</td>
       <td>${p.quantity}</td>
-      <td>€${p.unit_price.toFixed(2)}</td>
-      <td>€${p.subtotal.toFixed(2)}</td>
+      <td>${p.unit_price.toFixed(2)}€</td>
+      <td>${p.subtotal.toFixed(2)}€</td>
     </tr>
   `).join("");
 
   const htmlContent = `
-    <h2>Ciao ${user_name}, il tuo ordine è andato a buon fine!</h2>
-    <p>Ecco il riepilogo del tuo ordine:</p>
-    <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse;">
-      <thead>
+    <h2>Ciao ${user_name}, grazie per il tuo ordine! 🙌</h2>
+    <p>Abbiamo ricevuto correttamente la tua richiesta. Ecco il riepilogo:</p>
+
+    <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width:100%; text-align:left;">
+      <thead style="background:#f5f5f5;">
         <tr>
           <th>Prodotto</th>
           <th>Quantità</th>
@@ -95,9 +99,13 @@ async function sendOrderEmail({ toCustomer, toAdmin, orderData }) {
         ${productRows}
       </tbody>
     </table>
-    <p>Spese di spedizione: €${shopping_fee.toFixed(2)}</p>
-    <h3>Totale: €${total_price.toFixed(2)}</h3>
-    <p>Grazie per aver acquistato con noi!</p>
+
+    <p>💸 Sconto applicato: <b>${discountValue !== null ? discountValue + '%' : '-'}</b></p>
+    <p>📦 Spese di spedizione: <b>${shopping_fee.toFixed(2)}€</b></p>
+    <h3>Totale ordine: <b>${total_price.toFixed(2)}€</b></h3>
+
+    <p>Riceverai una notifica quando il tuo pacco sarà spedito.</p>
+    <h2>Grazie per aver scelto <b>Critical20</b> 🎲 </h2>
   `;
 
   // Email per il cliente
@@ -114,8 +122,11 @@ async function sendOrderEmail({ toCustomer, toAdmin, orderData }) {
     from: "critical20ecommerce@gmail.com",
     subject: `Nuovo ordine da ${user_name}`,
     html: `
-      <h2>Nuovo ordine ricevuto</h2>
-      <p>Cliente: ${user_name} (${user_email})</p>
+      <h2>Nuovo ordine ricevuto 🛒</h2>
+      <p><b>Cliente:</b> ${user_name} (${user_email})</p>
+      <p><b>Telefono:</b> ${phone}</p>
+      <p><b>Indirizzo di spedizione:</b> ${address_shipping}</p>
+      <h3>Email inviata al cliente:</h3>
       ${htmlContent}
     `,
   };
