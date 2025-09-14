@@ -77,7 +77,7 @@ critical20-frontend/
    ```
 3. Avvia il server:
    ```sh
-   npm start
+   npm run watch
    ```
    Il backend sarà disponibile su `http://localhost:3030`.
 
